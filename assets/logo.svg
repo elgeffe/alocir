@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- SNES grey rounded background -->
+  <rect width="512" height="512" rx="80" ry="80" fill="#C8C4CB"/>
+  <!-- Treemap grid — representing what the app actually does -->
+  <!-- Large block top-left (purple) -->
+  <rect x="70" y="70" width="220" height="240" rx="8" ry="8" fill="#6B4D99"/>
+  <!-- Medium block top-right (blue) -->
+  <rect x="300" y="70" width="142" height="140" rx="8" ry="8" fill="#4848CC"/>
+  <!-- Small block mid-right (red) -->
+  <rect x="300" y="220" width="142" height="90" rx="8" ry="8" fill="#CC3C3C"/>
+  <!-- Wide block bottom-left (green) -->
+  <rect x="70" y="320" width="220" height="122" rx="8" ry="8" fill="#3C9E3C"/>
+  <!-- Small block bottom-right (yellow) -->
+  <rect x="300" y="320" width="142" height="122" rx="8" ry="8" fill="#D4B830"/>
+</svg>

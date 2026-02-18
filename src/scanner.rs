@@ -1,6 +1,7 @@
 use rayon::prelude::*;
+use std::collections::HashSet;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -38,11 +39,13 @@ impl FileNode {
     pub fn scan_async(
         path: std::path::PathBuf,
         progress: Arc<ScanProgress>,
+        excluded: HashSet<PathBuf>,
         ctx: eframe::egui::Context,
     ) {
+        let excluded = Arc::new(excluded);
         std::thread::spawn(move || {
             let start = Instant::now();
-            let result = FileNode::scan(&path, &progress, &ctx);
+            let result = FileNode::scan(&path, &progress, &excluded, &ctx);
             let elapsed = start.elapsed();
             *progress.duration.lock().unwrap() = Some(elapsed);
             *progress.result.lock().unwrap() = Some(result);
@@ -51,7 +54,12 @@ impl FileNode {
         });
     }
 
-    fn scan(path: &Path, progress: &Arc<ScanProgress>, ctx: &eframe::egui::Context) -> FileNode {
+    fn scan(
+        path: &Path,
+        progress: &Arc<ScanProgress>,
+        excluded: &Arc<HashSet<PathBuf>>,
+        ctx: &eframe::egui::Context,
+    ) -> FileNode {
         let name = path
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
@@ -92,6 +100,16 @@ impl FileNode {
             };
         }
 
+        // Skip excluded directories.
+        if excluded.contains(path) {
+            return FileNode {
+                name,
+                size: 0,
+                children: Vec::new(),
+                is_dir: true,
+            };
+        }
+
         // Directory: update progress path (throttled — only if lock is free)
         progress.items_scanned.fetch_add(1, Ordering::Relaxed);
         if let Ok(mut current) = progress.current_path.try_lock() {
@@ -114,7 +132,7 @@ impl FileNode {
         // Scan children in parallel with rayon
         let mut children: Vec<FileNode> = entries
             .par_iter()
-            .map(|entry| FileNode::scan(&entry.path(), progress, ctx))
+            .map(|entry| FileNode::scan(&entry.path(), progress, excluded, ctx))
             .collect();
 
         let total_size: u64 = children.iter().map(|c| c.size).sum();

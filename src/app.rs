@@ -2,6 +2,7 @@ use eframe::egui;
 use eframe::egui::{Color32, CornerRadius, FontId, Rect, Sense, Stroke, StrokeKind};
 use eframe::emath::{Align2, pos2};
 use std::cell::RefCell;
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -24,6 +25,7 @@ pub struct SpaceSnifferApp {
     root: Option<FileNode>,
     root_path: String,
     scan_path: PathBuf,
+    excluded: HashSet<PathBuf>,
     nav_stack: Vec<usize>,
     scan_progress: Arc<ScanProgress>,
     scanning: bool,
@@ -35,14 +37,15 @@ pub struct SpaceSnifferApp {
 }
 
 impl SpaceSnifferApp {
-    pub fn new(path: PathBuf, ctx: &egui::Context) -> Self {
+    pub fn new(path: PathBuf, excluded: HashSet<PathBuf>, settings: SettingsState, ctx: &egui::Context) -> Self {
         let root_path = path.to_string_lossy().to_string();
         let progress = Arc::new(ScanProgress::new());
-        FileNode::scan_async(path.clone(), Arc::clone(&progress), ctx.clone());
+        FileNode::scan_async(path.clone(), Arc::clone(&progress), excluded.clone(), ctx.clone());
         SpaceSnifferApp {
             root: None,
             root_path,
             scan_path: path,
+            excluded,
             nav_stack: Vec::new(),
             scan_progress: progress,
             scanning: true,
@@ -50,7 +53,7 @@ impl SpaceSnifferApp {
             rename_state: None,
             saved_nav_names: None,
             scan_duration: None,
-            settings: SettingsState::new(),
+            settings,
         }
     }
 
@@ -118,7 +121,7 @@ impl SpaceSnifferApp {
         self.scan_progress = Arc::clone(&progress);
         self.scanning = true;
         self.scan_duration = None;
-        FileNode::scan_async(self.scan_path.clone(), progress, ctx.clone());
+        FileNode::scan_async(self.scan_path.clone(), progress, self.excluded.clone(), ctx.clone());
     }
 
     // -- File operations --

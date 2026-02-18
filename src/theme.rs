@@ -25,7 +25,7 @@ impl ColorScheme {
     pub fn name(self) -> &'static str {
         match self {
             ColorScheme::DarkMode => "Dark Mode",
-            ColorScheme::Retro => "Retro",
+            ColorScheme::Retro => "SNES",
             ColorScheme::MacOsX => "Mac OS X",
             ColorScheme::Windows98 => "Windows 98",
             ColorScheme::WindowsXp => "Windows XP",
@@ -59,15 +59,16 @@ impl ColorScheme {
                 hover_boost: 30,
             },
             ColorScheme::Retro => ThemeColors {
-                dir_base: [140, 80, 20],
-                dir_range: [40, 30, 20],
-                file_base: [120, 100, 30],
-                file_range: [40, 40, 20],
-                dir_border: Color32::from_rgb(200, 160, 80),
-                file_border: Color32::from_rgb(180, 170, 100),
-                text_primary: Color32::from_rgb(255, 200, 50),
-                text_secondary: Color32::from_rgb(200, 170, 80),
-                indicator: Color32::from_rgb(255, 200, 50),
+                // SNES-inspired: purple/lavender dirs, muted blue-grey files
+                dir_base: [75, 50, 130],
+                dir_range: [40, 30, 50],
+                file_base: [80, 80, 110],
+                file_range: [35, 35, 40],
+                dir_border: Color32::from_rgb(150, 120, 200),
+                file_border: Color32::from_rgb(140, 140, 170),
+                text_primary: Color32::from_rgb(230, 230, 240),
+                text_secondary: Color32::from_rgb(180, 175, 200),
+                indicator: Color32::from_rgb(200, 180, 255),
                 hover_boost: 25,
             },
             ColorScheme::MacOsX => ThemeColors {
