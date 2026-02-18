@@ -6,9 +6,6 @@ pub enum DeferredAction {
     OpenFile(PathBuf),
     RevealInFinder(PathBuf),
     CopyPath(String),
-    Cut(PathBuf),
-    Copy(PathBuf),
-    Paste { target_dir: PathBuf },
     StartRename { path: PathBuf, current_name: String },
     MoveToTrash(PathBuf),
     OpenTerminal(PathBuf),
@@ -20,8 +17,6 @@ pub fn build_context_menu(
     item_path: &Path,
     item_name: &str,
     is_dir: bool,
-    has_clipboard: bool,
-    current_dir: &Path,
 ) {
     if ui.button("Open").clicked() {
         *deferred.borrow_mut() = Some(DeferredAction::OpenFile(item_path.to_path_buf()));
@@ -68,30 +63,6 @@ pub fn build_context_menu(
             current_name: item_name.to_string(),
         });
         ui.close_menu();
-    }
-
-    ui.separator();
-
-    if ui.button("Cut").clicked() {
-        *deferred.borrow_mut() = Some(DeferredAction::Cut(item_path.to_path_buf()));
-        ui.close_menu();
-    }
-
-    if ui.button("Copy").clicked() {
-        *deferred.borrow_mut() = Some(DeferredAction::Copy(item_path.to_path_buf()));
-        ui.close_menu();
-    }
-
-    if has_clipboard {
-        let target = if is_dir {
-            item_path.to_path_buf()
-        } else {
-            current_dir.to_path_buf()
-        };
-        if ui.button("Paste").clicked() {
-            *deferred.borrow_mut() = Some(DeferredAction::Paste { target_dir: target });
-            ui.close_menu();
-        }
     }
 
     ui.separator();

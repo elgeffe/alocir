@@ -80,3 +80,53 @@ jobs:
         with:
           name: alocir-macos-arm64
           path: target/release/Alocir.app
+
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version from Cargo.toml
+        id: version
+        run: |
+          VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Package release archives
+        run: |
+          mkdir -p release
+
+          # Linux
+          cd artifacts/alocir-linux-x86_64
+          chmod +x alocir
+          zip ../../release/alocir-linux-x86_64.zip alocir
+          cd ../..
+
+          # Windows
+          cd artifacts/alocir-windows-x86_64
+          zip ../../release/alocir-windows-x86_64.zip alocir.exe
+          cd ../..
+
+          # macOS
+          cd artifacts/alocir-macos-arm64
+          zip -r ../../release/alocir-macos-arm64.zip Alocir.app
+          cd ../..
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Alocir v${{ steps.version.outputs.version }}
+          files: release/*
+          make_latest: true
+          generate_release_notes: true

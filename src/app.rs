@@ -3,13 +3,11 @@ use eframe::egui::{Color32, CornerRadius, FontId, Rect, Sense, Stroke, StrokeKin
 use eframe::emath::{Align2, pos2};
 use std::cell::RefCell;
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::context_menu::{DeferredAction, build_context_menu};
-use crate::file_ops::{
-    ClipEntry, copy_dir_recursive, open_path, open_terminal, reveal_in_file_manager,
-};
+use crate::file_ops::{open_path, open_terminal, reveal_in_file_manager};
 use crate::scanner::{FileNode, ScanProgress, format_size};
 use crate::settings::{SettingsState, show_settings_window};
 use crate::theme::ThemeColors;
@@ -29,7 +27,6 @@ pub struct SpaceSnifferApp {
     nav_stack: Vec<usize>,
     scan_progress: Arc<ScanProgress>,
     scanning: bool,
-    clipboard: Option<ClipEntry>,
     rename_state: Option<RenameState>,
     saved_nav_names: Option<Vec<String>>,
     scan_duration: Option<std::time::Duration>,
@@ -49,7 +46,6 @@ impl SpaceSnifferApp {
             nav_stack: Vec::new(),
             scan_progress: progress,
             scanning: true,
-            clipboard: None,
             rename_state: None,
             saved_nav_names: None,
             scan_duration: None,
@@ -124,43 +120,50 @@ impl SpaceSnifferApp {
         FileNode::scan_async(self.scan_path.clone(), progress, self.excluded.clone(), ctx.clone());
     }
 
-    // -- File operations --
-
-    fn do_paste(&mut self, target_dir: PathBuf, ctx: &egui::Context) {
-        if let Some(clip) = self.clipboard.take() {
-            let file_name = clip.path.file_name().unwrap_or_default().to_os_string();
-            let dest = target_dir.join(&file_name);
-
-            let result = if clip.is_cut {
-                std::fs::rename(&clip.path, &dest).or_else(|_| {
-                    if clip.path.is_dir() {
-                        copy_dir_recursive(&clip.path, &dest)
-                            .and_then(|_| std::fs::remove_dir_all(&clip.path))
-                    } else {
-                        std::fs::copy(&clip.path, &dest)
-                            .and_then(|_| std::fs::remove_file(&clip.path))
-                    }
-                })
-            } else if clip.path.is_dir() {
-                copy_dir_recursive(&clip.path, &dest)
-            } else {
-                std::fs::copy(&clip.path, &dest).map(|_| ())
-            };
-
-            if let Err(e) = result {
-                eprintln!("Paste failed: {}", e);
-                self.clipboard = Some(clip);
-            } else {
-                self.trigger_rescan(ctx);
-            }
+    fn do_trash(&mut self, path: PathBuf, _ctx: &egui::Context) {
+        match trash::delete(&path) {
+            Ok(()) => self.remove_node_by_path(&path),
+            Err(e) => eprintln!("Move to trash failed: {}", e),
         }
     }
 
-    fn do_trash(&mut self, path: PathBuf, ctx: &egui::Context) {
-        match trash::delete(&path) {
-            Ok(()) => self.trigger_rescan(ctx),
-            Err(e) => eprintln!("Move to trash failed: {}", e),
+    /// Remove a node from the in-memory tree by its filesystem path,
+    /// updating ancestor sizes without a full rescan.
+    fn remove_node_by_path(&mut self, path: &Path) {
+        let name = match path.file_name() {
+            Some(n) => n.to_string_lossy().to_string(),
+            None => return,
+        };
+
+        // First pass (immutable): find the child's position and size
+        let (pos, removed_size) = {
+            let root = match &self.root {
+                Some(r) => r,
+                None => return,
+            };
+            let mut node = root;
+            for &idx in &self.nav_stack {
+                if idx < node.children.len() {
+                    node = &node.children[idx];
+                } else {
+                    return;
+                }
+            }
+            match node.children.iter().position(|c| c.name == name) {
+                Some(p) => (p, node.children[p].size),
+                None => return,
+            }
+        };
+
+        // Second pass (mutable): subtract size from ancestors and remove the child
+        let root = self.root.as_mut().unwrap();
+        root.size = root.size.saturating_sub(removed_size);
+        let mut node = root;
+        for &idx in &self.nav_stack {
+            node = &mut node.children[idx];
+            node.size = node.size.saturating_sub(removed_size);
         }
+        node.children.remove(pos);
     }
 
     // -- UI sections --
@@ -328,7 +331,6 @@ impl SpaceSnifferApp {
         });
 
         let current_dir = self.current_dir_path();
-        let has_clipboard = self.clipboard.is_some();
 
         egui::CentralPanel::default().show(ctx, |ui| {
             let children_info = {
@@ -418,8 +420,6 @@ impl SpaceSnifferApp {
                         &item_path,
                         &item_name,
                         item_is_dir,
-                        has_clipboard,
-                        &current_dir,
                     );
                 });
 
@@ -508,13 +508,6 @@ impl SpaceSnifferApp {
                     DeferredAction::OpenFile(p) => open_path(&p),
                     DeferredAction::RevealInFinder(p) => reveal_in_file_manager(&p),
                     DeferredAction::CopyPath(s) => ctx.copy_text(s),
-                    DeferredAction::Cut(p) => {
-                        self.clipboard = Some(ClipEntry { path: p, is_cut: true });
-                    }
-                    DeferredAction::Copy(p) => {
-                        self.clipboard = Some(ClipEntry { path: p, is_cut: false });
-                    }
-                    DeferredAction::Paste { target_dir } => self.do_paste(target_dir, ctx),
                     DeferredAction::StartRename { path, current_name } => {
                         self.rename_state = Some(RenameState {
                             path,
