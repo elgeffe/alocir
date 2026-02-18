@@ -28,24 +28,80 @@
 - **6 color schemes** — Dark Mode, SNES, Mac OS X, Windows 98, Windows XP, Matrix
 - **Cross-platform** — Runs on Windows, Linux, and macOS
 
-## Getting started
+## Installation
 
-### Prerequisites
+### Download a release
+
+Pre-built binaries are available on the [Releases](https://github.com/elgeffe/alocir/releases) page:
+
+| Platform | Artifact |
+|----------|----------|
+| Windows (x86_64) | `alocir-windows-x86_64.zip` |
+| Linux (x86_64) | `alocir-linux-x86_64.zip` |
+| macOS (Apple Silicon) | `alocir-macos-arm64.zip` |
+
+#### Windows
+
+1. Download and extract `alocir-windows-x86_64.zip`
+2. Run `alocir.exe`
+
+#### Linux
+
+1. Download and extract `alocir-linux-x86_64.zip`
+2. Make the binary executable and run it:
+   ```bash
+   chmod +x alocir
+   ./alocir
+   ```
+
+#### macOS
+
+1. Download and extract `alocir-macos-arm64.zip`
+2. Move `Alocir.app` to `/Applications/`
+3. On first launch, macOS may show an "unidentified developer" warning — right-click the app and choose **Open** to bypass it
+
+### Build from source
+
+#### Prerequisites
 
 - [Rust](https://www.rust-lang.org/tools/install) (1.70+)
-- On Linux, install the required system dependencies:
+- **Linux only** — install system dependencies:
   ```bash
   sudo apt-get install -y libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
     libxkbcommon-dev libgtk-3-dev
   ```
 
-### Build and run
+#### Build and run
 
 ```bash
 cargo run --release
 ```
 
-### Run tests
+The compiled binary will be at `target/release/alocir` (or `alocir.exe` on Windows).
+
+#### macOS app bundle
+
+To build a proper `.app` bundle with an icon:
+
+```bash
+./scripts/build-macos.sh
+```
+
+This creates `target/release/Alocir.app` with ad-hoc code signing. To install:
+
+```bash
+cp -r target/release/Alocir.app /Applications/
+```
+
+> **Note:** To eliminate the "unidentified developer" warning, the app must be signed with an [Apple Developer ID](https://developer.apple.com/developer-id/) and notarized:
+>
+> ```bash
+> ./scripts/build-macos.sh --sign "Developer ID Application: Your Name (TEAMID)"
+> xcrun notarytool submit target/release/Alocir.app --apple-id ... --team-id ... --password ...
+> xcrun stapler staple target/release/Alocir.app
+> ```
+
+#### Run tests
 
 ```bash
 cargo test
@@ -63,27 +119,23 @@ cargo test
 8. **Right-click** any item for file operations (open, copy, rename, trash, etc.)
 9. Click the **gear icon** to change color schemes
 
-## macOS app bundle
+## Roadmap
 
-To build a proper `.app` bundle with an icon that launches without Gatekeeper crashes:
+### Now
+- Stabilize cross-platform builds and release packaging
+- Bug fixes for filesystem watcher edge cases
 
-```bash
-./scripts/build-macos.sh
-```
+### Next
+- Scan progress bar (percentage-based)
+- Persistent settings (remember last color scheme, window size)
+- Keyboard navigation for the treemap
+- Search / filter files by name or extension
 
-This creates `target/release/Alocir.app` with ad-hoc code signing. To install:
-
-```bash
-cp -r target/release/Alocir.app /Applications/
-```
-
-> **Note:** On first launch, macOS may show an "unidentified developer" warning. Right-click the app and choose **Open** to bypass it. To eliminate the warning entirely, the app must be signed with an [Apple Developer ID](https://developer.apple.com/developer-id/) and notarized:
->
-> ```bash
-> ./scripts/build-macos.sh --sign "Developer ID Application: Your Name (TEAMID)"
-> xcrun notarytool submit target/release/Alocir.app --apple-id ... --team-id ... --password ...
-> xcrun stapler staple target/release/Alocir.app
-> ```
+### Future
+- Duplicate file detection
+- Disk usage trends over time
+- Export reports (CSV / HTML)
+- Custom color scheme editor
 
 ## Dependencies
 
