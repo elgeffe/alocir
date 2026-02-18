@@ -117,10 +117,10 @@ jobs:
           zip ../../release/alocir-windows-x86_64.zip alocir.exe
           cd ../..
 
-          # macOS
-          cd artifacts/alocir-macos-arm64
-          zip -r ../../release/alocir-macos-arm64.zip Alocir.app
-          cd ../..
+          # macOS — upload-artifact flattens the .app bundle, so reconstruct it
+          mkdir -p Alocir.app
+          mv artifacts/alocir-macos-arm64/* Alocir.app/
+          zip -r release/alocir-macos-arm64.zip Alocir.app
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
