@@ -1,6 +1,6 @@
 # Alocir
 
-A cross-platform disk space visualizer built with Rust. Inspired by [SpaceSniffer](http://www.interstella.com/spacesniffer/).
+A cross-platform disk space visualizer built with Rust. Inspired by [SpaceSniffer](https://www.uderzo.it/main_products/space_sniffer/).
 
 [![CI](https://github.com/elgeffe/alocir/actions/workflows/ci.yml/badge.svg)](https://github.com/elgeffe/alocir/actions/workflows/ci.yml)
 
