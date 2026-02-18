@@ -36,6 +36,73 @@ impl ScanProgress {
 }
 
 impl FileNode {
+    /// Scan a single file or directory (one level deep for dirs) without
+    /// progress reporting. Used for live filesystem watch insertions.
+    pub fn scan_single(path: &Path) -> Option<FileNode> {
+        let meta = fs::symlink_metadata(path).ok()?;
+        if meta.is_symlink() {
+            return None;
+        }
+
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| path.to_string_lossy().to_string());
+
+        if meta.is_file() {
+            return Some(FileNode {
+                name,
+                size: meta.len(),
+                children: Vec::new(),
+                is_dir: false,
+            });
+        }
+
+        // Directory: read immediate children
+        let entries = match fs::read_dir(path) {
+            Ok(rd) => rd.filter_map(|e| e.ok()).collect::<Vec<_>>(),
+            Err(_) => Vec::new(),
+        };
+
+        let mut children: Vec<FileNode> = entries
+            .iter()
+            .filter_map(|entry| {
+                let ft = entry.file_type().ok()?;
+                if ft.is_symlink() {
+                    return None;
+                }
+                let p = entry.path();
+                if ft.is_file() {
+                    let size = fs::metadata(&p).map(|m| m.len()).unwrap_or(0);
+                    Some(FileNode {
+                        name: entry.file_name().to_string_lossy().to_string(),
+                        size,
+                        children: Vec::new(),
+                        is_dir: false,
+                    })
+                } else {
+                    // For subdirectories, just get total size without deep recursion
+                    Some(FileNode {
+                        name: entry.file_name().to_string_lossy().to_string(),
+                        size: 0,
+                        children: Vec::new(),
+                        is_dir: true,
+                    })
+                }
+            })
+            .collect();
+
+        let total_size: u64 = children.iter().map(|c| c.size).sum();
+        children.sort_unstable_by(|a, b| b.size.cmp(&a.size));
+
+        Some(FileNode {
+            name,
+            size: total_size,
+            children,
+            is_dir: true,
+        })
+    }
+
     pub fn scan_async(
         path: std::path::PathBuf,
         progress: Arc<ScanProgress>,

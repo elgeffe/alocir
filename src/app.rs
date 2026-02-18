@@ -1,10 +1,12 @@
 use eframe::egui;
 use eframe::egui::{Color32, CornerRadius, FontId, Rect, Sense, Stroke, StrokeKind};
 use eframe::emath::{Align2, pos2};
+use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::mpsc;
 
 use crate::context_menu::{DeferredAction, build_context_menu};
 use crate::file_ops::{open_path, open_terminal, reveal_in_file_manager};
@@ -31,6 +33,10 @@ pub struct SpaceSnifferApp {
     saved_nav_names: Option<Vec<String>>,
     scan_duration: Option<std::time::Duration>,
     settings: SettingsState,
+    // Filesystem watcher for live updates
+    _watcher: Option<RecommendedWatcher>,
+    watch_rx: Option<mpsc::Receiver<notify::Result<notify::Event>>>,
+    watched_dir: Option<PathBuf>,
 }
 
 impl SpaceSnifferApp {
@@ -50,6 +56,9 @@ impl SpaceSnifferApp {
             saved_nav_names: None,
             scan_duration: None,
             settings,
+            _watcher: None,
+            watch_rx: None,
+            watched_dir: None,
         }
     }
 
@@ -109,6 +118,186 @@ impl SpaceSnifferApp {
             }
         }
         stack
+    }
+
+    fn start_watching(&mut self, dir: &Path, ctx: &egui::Context) {
+        let (tx, rx) = mpsc::channel();
+        let ctx_clone = ctx.clone();
+        let watcher = notify::recommended_watcher(move |res| {
+            let _ = tx.send(res);
+            ctx_clone.request_repaint();
+        });
+        match watcher {
+            Ok(mut w) => {
+                if w.watch(dir, RecursiveMode::NonRecursive).is_ok() {
+                    self._watcher = Some(w);
+                    self.watch_rx = Some(rx);
+                    self.watched_dir = Some(dir.to_path_buf());
+                }
+            }
+            Err(_) => {
+                self._watcher = None;
+                self.watch_rx = None;
+                self.watched_dir = None;
+            }
+        }
+    }
+
+    fn ensure_watching(&mut self, ctx: &egui::Context) {
+        let current = self.current_dir_path();
+        if self.watched_dir.as_ref() != Some(&current) {
+            self.start_watching(&current, ctx);
+        }
+    }
+
+    fn process_watch_events(&mut self) {
+        let rx = match &self.watch_rx {
+            Some(r) => r,
+            None => return,
+        };
+
+        let mut events = Vec::new();
+        while let Ok(result) = rx.try_recv() {
+            if let Ok(event) = result {
+                events.push(event);
+            }
+        }
+
+        for event in events {
+            use notify::EventKind;
+            match event.kind {
+                EventKind::Create(_) => {
+                    for path in &event.paths {
+                        self.insert_node(path);
+                    }
+                }
+                EventKind::Remove(_) => {
+                    for path in &event.paths {
+                        self.remove_node_by_path(path);
+                    }
+                }
+                EventKind::Modify(_) => {
+                    for path in &event.paths {
+                        self.update_node_size(path);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn insert_node(&mut self, path: &Path) {
+        let new_node = match FileNode::scan_single(path) {
+            Some(n) => n,
+            None => return,
+        };
+
+        // Check it doesn't already exist
+        {
+            let root = match &self.root {
+                Some(r) => r,
+                None => return,
+            };
+            let mut node = root;
+            for &idx in &self.nav_stack {
+                if idx < node.children.len() {
+                    node = &node.children[idx];
+                } else {
+                    return;
+                }
+            }
+            if node.children.iter().any(|c| c.name == new_node.name) {
+                return;
+            }
+        }
+
+        let added_size = new_node.size;
+
+        // Mutably walk to the current node and insert
+        let root = match self.root.as_mut() {
+            Some(r) => r,
+            None => return,
+        };
+        root.size += added_size;
+        let mut node = root;
+        for &idx in &self.nav_stack {
+            node = &mut node.children[idx];
+            node.size += added_size;
+        }
+
+        // Insert sorted by size descending
+        let pos = node
+            .children
+            .iter()
+            .position(|c| c.size < new_node.size)
+            .unwrap_or(node.children.len());
+        node.children.insert(pos, new_node);
+    }
+
+    fn update_node_size(&mut self, path: &Path) {
+        let name = match path.file_name() {
+            Some(n) => n.to_string_lossy().to_string(),
+            None => return,
+        };
+
+        let new_size = match std::fs::symlink_metadata(path) {
+            Ok(m) if m.is_file() => m.len(),
+            _ => return,
+        };
+
+        // First pass: find current size
+        let (pos, old_size) = {
+            let root = match &self.root {
+                Some(r) => r,
+                None => return,
+            };
+            let mut node = root;
+            for &idx in &self.nav_stack {
+                if idx < node.children.len() {
+                    node = &node.children[idx];
+                } else {
+                    return;
+                }
+            }
+            match node.children.iter().position(|c| c.name == name) {
+                Some(p) => (p, node.children[p].size),
+                None => return,
+            }
+        };
+
+        if new_size == old_size {
+            return;
+        }
+
+        // Second pass: update sizes
+        let root = self.root.as_mut().unwrap();
+        if new_size > old_size {
+            let delta = new_size - old_size;
+            root.size += delta;
+            let mut node = root;
+            for &idx in &self.nav_stack {
+                node = &mut node.children[idx];
+                node.size += delta;
+            }
+            node.children[pos].size = new_size;
+        } else {
+            let delta = old_size - new_size;
+            root.size = root.size.saturating_sub(delta);
+            let mut node = root;
+            for &idx in &self.nav_stack {
+                node = &mut node.children[idx];
+                node.size = node.size.saturating_sub(delta);
+            }
+            node.children[pos].size = new_size;
+        }
+
+        // Re-sort children by size descending
+        let root = self.root.as_mut().unwrap();
+        let mut node = root;
+        for &idx in &self.nav_stack {
+            node = &mut node.children[idx];
+        }
+        node.children.sort_unstable_by(|a, b| b.size.cmp(&a.size));
     }
 
     fn trigger_rescan(&mut self, ctx: &egui::Context) {
@@ -536,15 +725,18 @@ impl eframe::App for SpaceSnifferApp {
                         self.nav_stack = Self::restore_nav(root, &names);
                     }
                 }
+                self.ensure_watching(ctx);
             }
         }
 
         if self.scanning {
             self.show_scanning_ui(ctx);
         } else {
+            self.process_watch_events();
             self.show_treemap_ui(ctx);
             self.show_rename_dialog(ctx);
             show_settings_window(ctx, &mut self.settings);
+            self.ensure_watching(ctx);
         }
     }
 }
