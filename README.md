@@ -21,7 +21,6 @@
 
 - **Interactive treemap** — Visualize disk usage with a squarified treemap layout
 - **Parallel scanning** — Fast directory scanning powered by Rayon
-- **Cloud storage detection** — iCloud, Google Drive, OneDrive, Dropbox, MEGA, Box, pCloud, and more are auto-detected and can be skipped before scanning
 - **Folder exclusion** — Deselect any folder in the pre-scan tree view to skip it
 - **Drill-down navigation** — Click directories to explore, breadcrumb trail to navigate back
 - **File operations** — Cut, copy, paste, rename, and move to trash via right-click context menu
@@ -40,36 +39,11 @@ Pre-built binaries are available on the [Releases](https://github.com/elgeffe/al
 | Linux (x86_64) | `alocir-linux-x86_64.zip` |
 | macOS (Apple Silicon) | `alocir-macos-arm64.zip` |
 
-#### Windows
-
-1. Download and extract `alocir-windows-x86_64.zip`
-2. Run `alocir.exe`
-
-#### Linux
-
-1. Download and extract `alocir-linux-x86_64.zip`
-2. Make the binary executable and run it:
-   ```bash
-   chmod +x alocir
-   ./alocir
-   ```
-
-#### macOS
-
-1. Download and extract `alocir-macos-arm64.zip`
-2. Move `Alocir.app` to `/Applications/`
-3. On first launch, macOS may show an "unidentified developer" warning — right-click the app and choose **Open** to bypass it
-
 ### Build from source
 
 #### Prerequisites
 
 - [Rust](https://www.rust-lang.org/tools/install) (1.70+)
-- **Linux only** — install system dependencies:
-  ```bash
-  sudo apt-get install -y libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
-    libxkbcommon-dev libgtk-3-dev
-  ```
 
 #### Build and run
 
@@ -78,28 +52,6 @@ cargo run --release
 ```
 
 The compiled binary will be at `target/release/alocir` (or `alocir.exe` on Windows).
-
-#### macOS app bundle
-
-To build a proper `.app` bundle with an icon:
-
-```bash
-./scripts/build-macos.sh
-```
-
-This creates `target/release/Alocir.app` with ad-hoc code signing. To install:
-
-```bash
-cp -r target/release/Alocir.app /Applications/
-```
-
-> **Note:** To eliminate the "unidentified developer" warning, the app must be signed with an [Apple Developer ID](https://developer.apple.com/developer-id/) and notarized:
->
-> ```bash
-> ./scripts/build-macos.sh --sign "Developer ID Application: Your Name (TEAMID)"
-> xcrun notarytool submit target/release/Alocir.app --apple-id ... --team-id ... --password ...
-> xcrun stapler staple target/release/Alocir.app
-> ```
 
 #### Run tests
 
@@ -133,7 +85,6 @@ cargo test
 
 ### Future
 - Duplicate file detection
-- Disk usage trends over time
 - Export reports (CSV / HTML)
 - Custom color scheme editor
 
