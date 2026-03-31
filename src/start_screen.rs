@@ -62,7 +62,10 @@ impl StartScreen {
 
             ui.heading("Alocir");
             ui.add_space(4.0);
-            ui.label(egui::RichText::new("Disk space visualizer").color(egui::Color32::GRAY));
+            ui.label(
+                egui::RichText::new("Disk space visualizer & file explorer")
+                    .color(egui::Color32::GRAY),
+            );
 
             ui.add_space(32.0);
 

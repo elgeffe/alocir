@@ -1,5 +1,6 @@
 mod app;
 mod context_menu;
+mod explorer;
 mod file_ops;
 mod icon;
 mod scanner;
