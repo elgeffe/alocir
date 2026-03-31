@@ -9,18 +9,11 @@ use std::sync::Arc;
 use std::sync::mpsc;
 
 use crate::context_menu::{DeferredAction, build_context_menu};
-use crate::explorer::{ExplorerState, show_explorer_view};
 use crate::file_ops::{open_path, open_terminal, reveal_in_file_manager};
 use crate::scanner::{FileNode, ScanProgress, format_size};
 use crate::settings::{SettingsState, show_settings_window};
 use crate::theme::ThemeColors;
 use crate::treemap::squarify;
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum ViewMode {
-    Treemap,
-    Explorer,
-}
 
 struct RenameState {
     path: PathBuf,
@@ -44,9 +37,6 @@ pub struct SpaceSnifferApp {
     _watcher: Option<RecommendedWatcher>,
     watch_rx: Option<mpsc::Receiver<notify::Result<notify::Event>>>,
     watched_dir: Option<PathBuf>,
-    // View mode
-    view_mode: ViewMode,
-    explorer_state: ExplorerState,
 }
 
 impl SpaceSnifferApp {
@@ -69,8 +59,6 @@ impl SpaceSnifferApp {
             _watcher: None,
             watch_rx: None,
             watched_dir: None,
-            view_mode: ViewMode::Explorer,
-            explorer_state: ExplorerState::new(),
         }
     }
 
@@ -480,18 +468,6 @@ impl SpaceSnifferApp {
                     spawn_new_instance();
                 }
 
-                // View mode toggle
-                let (icon, tooltip) = match self.view_mode {
-                    ViewMode::Treemap => ("\u{2630}", "Switch to Explorer view"),
-                    ViewMode::Explorer => ("\u{25A6}", "Switch to Treemap view"),
-                };
-                if ui.button(icon).on_hover_text(tooltip).clicked() {
-                    self.view_mode = match self.view_mode {
-                        ViewMode::Treemap => ViewMode::Explorer,
-                        ViewMode::Explorer => ViewMode::Treemap,
-                    };
-                }
-
                 ui.separator();
 
                 // Breadcrumb navigation
@@ -545,73 +521,6 @@ impl SpaceSnifferApp {
 
         let current_dir = self.current_dir_path();
 
-        // Update address bar to reflect current path
-        if !self.explorer_state.address_bar_active {
-            self.explorer_state.address_bar = current_dir.to_string_lossy().to_string();
-        }
-
-        match self.view_mode {
-            ViewMode::Explorer => {
-                // Gather node data before the mutable borrow on explorer_state
-                let node_info = self.current_node().map(|n| {
-                    (n.name.clone(), n.size, n.children.is_empty())
-                });
-
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    let (name, size, empty) = match &node_info {
-                        Some(info) => info,
-                        None => {
-                            ui.label("No data to display.");
-                            return;
-                        }
-                    };
-
-                    if *empty {
-                        ui.centered_and_justified(|ui| {
-                            ui.label(format!("{}\n{}", name, format_size(*size)));
-                        });
-                        return;
-                    }
-
-                    // Navigate to the current node through the tree manually to
-                    // get a reference that doesn't borrow all of `self`.
-                    let root = match &self.root {
-                        Some(r) => r,
-                        None => { ui.label("No data."); return; }
-                    };
-                    let mut node = root;
-                    for &idx in &self.nav_stack {
-                        if idx < node.children.len() {
-                            node = &node.children[idx];
-                        } else {
-                            ui.label("Navigation error.");
-                            return;
-                        }
-                    }
-
-                    let (clicked_dir, deferred_action, address_nav) =
-                        show_explorer_view(ui, node, &current_dir, &mut self.explorer_state);
-
-                    if let Some(idx) = clicked_dir {
-                        self.nav_stack.push(idx);
-                    }
-
-                    if let Some(action) = deferred_action {
-                        self.execute_deferred(action, ctx);
-                    }
-
-                    if let Some(_path) = address_nav {
-                        self.trigger_rescan(ctx);
-                    }
-                });
-            }
-            ViewMode::Treemap => {
-                self.show_treemap_central(ctx, &theme, &current_dir);
-            }
-        }
-    }
-
-    fn show_treemap_central(&mut self, ctx: &egui::Context, theme: &ThemeColors, current_dir: &PathBuf) {
         egui::CentralPanel::default().show(ctx, |ui| {
             let children_info = {
                 let node = match self.current_node() {
@@ -784,26 +693,22 @@ impl SpaceSnifferApp {
 
             // Execute deferred context menu action
             if let Some(action) = deferred.into_inner() {
-                self.execute_deferred(action, ctx);
+                match action {
+                    DeferredAction::OpenFile(p) => open_path(&p),
+                    DeferredAction::RevealInFinder(p) => reveal_in_file_manager(&p),
+                    DeferredAction::CopyPath(s) => ctx.copy_text(s),
+                    DeferredAction::StartRename { path, current_name } => {
+                        self.rename_state = Some(RenameState {
+                            path,
+                            new_name: current_name,
+                            error: None,
+                        });
+                    }
+                    DeferredAction::MoveToTrash(p) => self.do_trash(p, ctx),
+                    DeferredAction::OpenTerminal(p) => open_terminal(&p),
+                }
             }
         });
-    }
-
-    fn execute_deferred(&mut self, action: DeferredAction, ctx: &egui::Context) {
-        match action {
-            DeferredAction::OpenFile(p) => open_path(&p),
-            DeferredAction::RevealInFinder(p) => reveal_in_file_manager(&p),
-            DeferredAction::CopyPath(s) => ctx.copy_text(s),
-            DeferredAction::StartRename { path, current_name } => {
-                self.rename_state = Some(RenameState {
-                    path,
-                    new_name: current_name,
-                    error: None,
-                });
-            }
-            DeferredAction::MoveToTrash(p) => self.do_trash(p, ctx),
-            DeferredAction::OpenTerminal(p) => open_terminal(&p),
-        }
     }
 }
 

@@ -4,38 +4,13 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant, UNIX_EPOCH};
-
-fn modified_epoch(meta: &fs::Metadata) -> Option<u64> {
-    meta.modified()
-        .ok()
-        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-        .map(|d| d.as_secs())
-}
+use std::time::{Duration, Instant};
 
 pub struct FileNode {
     pub name: String,
     pub size: u64,
     pub children: Vec<FileNode>,
     pub is_dir: bool,
-    /// Last modified time as seconds since UNIX epoch, if available.
-    pub modified: Option<u64>,
-}
-
-impl FileNode {
-    /// Returns the file extension (lowercase), or empty string for dirs/no extension.
-    pub fn extension(&self) -> &str {
-        if self.is_dir {
-            return "";
-        }
-        match self.name.rsplit_once('.') {
-            Some((_, ext)) => {
-                // Return the part after the last dot; caller can lowercase if needed
-                ext
-            }
-            None => "",
-        }
-    }
 }
 
 pub struct ScanProgress {
@@ -80,7 +55,6 @@ impl FileNode {
                 size: meta.len(),
                 children: Vec::new(),
                 is_dir: false,
-                modified: modified_epoch(&meta),
             });
         }
 
@@ -99,25 +73,20 @@ impl FileNode {
                 }
                 let p = entry.path();
                 if ft.is_file() {
-                    let m = fs::metadata(&p).ok();
-                    let size = m.as_ref().map(|m| m.len()).unwrap_or(0);
-                    let modified = m.as_ref().and_then(|m| modified_epoch(m));
+                    let size = fs::metadata(&p).map(|m| m.len()).unwrap_or(0);
                     Some(FileNode {
                         name: entry.file_name().to_string_lossy().to_string(),
                         size,
                         children: Vec::new(),
                         is_dir: false,
-                        modified,
                     })
                 } else {
-                    let m = fs::metadata(&p).ok();
-                    let modified = m.as_ref().and_then(|m| modified_epoch(m));
+                    // For subdirectories, just get total size without deep recursion
                     Some(FileNode {
                         name: entry.file_name().to_string_lossy().to_string(),
                         size: 0,
                         children: Vec::new(),
                         is_dir: true,
-                        modified,
                     })
                 }
             })
@@ -131,7 +100,6 @@ impl FileNode {
             size: total_size,
             children,
             is_dir: true,
-            modified: modified_epoch(&meta),
         })
     }
 
@@ -173,7 +141,6 @@ impl FileNode {
                     size: 0,
                     children: Vec::new(),
                     is_dir: false,
-                    modified: None,
                 };
             }
         };
@@ -185,7 +152,6 @@ impl FileNode {
                 size: 0,
                 children: Vec::new(),
                 is_dir: false,
-                modified: None,
             };
         }
 
@@ -198,7 +164,6 @@ impl FileNode {
                 size,
                 children: Vec::new(),
                 is_dir: false,
-                modified: modified_epoch(&meta),
             };
         }
 
@@ -209,7 +174,6 @@ impl FileNode {
                 size: 0,
                 children: Vec::new(),
                 is_dir: true,
-                modified: modified_epoch(&meta),
             };
         }
 
@@ -248,7 +212,6 @@ impl FileNode {
             size: total_size,
             children,
             is_dir: true,
-            modified: modified_epoch(&meta),
         }
     }
 }
@@ -317,13 +280,11 @@ mod tests {
             size: 1024,
             children: Vec::new(),
             is_dir: false,
-            modified: Some(1700000000),
         };
         assert_eq!(node.name, "test.txt");
         assert_eq!(node.size, 1024);
         assert!(!node.is_dir);
         assert!(node.children.is_empty());
-        assert_eq!(node.extension(), "txt");
     }
 
     #[test]
@@ -333,26 +294,22 @@ mod tests {
             size: 2000,
             children: Vec::new(),
             is_dir: false,
-            modified: None,
         };
         let child2 = FileNode {
             name: "small.txt".to_string(),
             size: 100,
             children: Vec::new(),
             is_dir: false,
-            modified: None,
         };
         let dir = FileNode {
             name: "mydir".to_string(),
             size: 2100,
             children: vec![child1, child2],
             is_dir: true,
-            modified: None,
         };
         assert!(dir.is_dir);
         assert_eq!(dir.children.len(), 2);
         assert_eq!(dir.size, 2100);
-        assert_eq!(dir.extension(), "");
     }
 
     #[test]
