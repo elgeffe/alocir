@@ -4,9 +4,9 @@ use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
-use crate::context_menu::{DeferredAction, build_context_menu};
-use crate::file_ops::{open_path, open_terminal, reveal_in_file_manager};
-use crate::scanner::format_size;
+use alocir_shared::context_menu::{DeferredAction, build_context_menu};
+use alocir_shared::file_ops::{open_path, open_terminal, reveal_in_file_manager};
+use alocir_shared::scanner::format_size;
 
 // ─── Directory entry (live from filesystem) ─────────────────────────────────
 
@@ -316,6 +316,7 @@ impl ExplorerApp {
         }
     }
 
+    #[allow(dead_code)]
     pub fn current_path(&self) -> &Path {
         &self.current_dir
     }

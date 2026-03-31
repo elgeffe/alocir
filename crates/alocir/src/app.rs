@@ -8,12 +8,12 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::mpsc;
 
-use crate::context_menu::{DeferredAction, build_context_menu};
-use crate::file_ops::{open_path, open_terminal, reveal_in_file_manager};
-use crate::scanner::{FileNode, ScanProgress, format_size};
-use crate::settings::{SettingsState, show_settings_window};
-use crate::theme::ThemeColors;
-use crate::treemap::squarify;
+use alocir_shared::context_menu::{DeferredAction, build_context_menu};
+use alocir_shared::file_ops::{open_path, open_terminal, reveal_in_file_manager};
+use alocir_shared::scanner::{FileNode, ScanProgress, format_size};
+use alocir_shared::settings::{SettingsState, show_settings_window};
+use alocir_shared::theme::ThemeColors;
+use alocir_shared::treemap::squarify;
 
 struct RenameState {
     path: PathBuf,

@@ -1,0 +1,14 @@
+[package]
+name = "alocir-explorer"
+version = "0.2.0"
+edition = "2021"
+
+[[bin]]
+name = "alocir-explorer"
+path = "src/main.rs"
+
+[dependencies]
+alocir-shared = { path = "../shared" }
+eframe = "0.31"
+rfd = "0.15"
+trash = "5"

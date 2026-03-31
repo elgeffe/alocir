@@ -133,6 +133,28 @@ dependencies = [
 name = "alocir"
 version = "0.2.0"
 dependencies = [
+ "alocir-shared",
+ "eframe",
+ "notify",
+ "rayon",
+ "rfd",
+ "trash",
+]
+
+[[package]]
+name = "alocir-explorer"
+version = "0.2.0"
+dependencies = [
+ "alocir-shared",
+ "eframe",
+ "rfd",
+ "trash",
+]
+
+[[package]]
+name = "alocir-shared"
+version = "0.2.0"
+dependencies = [
  "eframe",
  "notify",
  "rayon",

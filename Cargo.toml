@@ -1,11 +1,7 @@
-[package]
-name = "alocir"
-version = "0.2.0"
-edition = "2021"
-
-[dependencies]
-eframe = "0.31"
-rfd = "0.15"
-trash = "5"
-rayon = "1"
-notify = "8"
+[workspace]
+resolver = "2"
+members = [
+    "crates/shared",
+    "crates/explorer",
+    "crates/alocir",
+]
